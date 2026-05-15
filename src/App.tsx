@@ -30,7 +30,7 @@ import {
   Mic,
   Bell,
 } from "lucide-react";
-
+// @ts-ignore
 import { auth, db, googleProvider } from "./firebase";
 import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import {
