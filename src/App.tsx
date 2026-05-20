@@ -601,7 +601,7 @@ export default function App() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
 
-  const selectedPost = posts.find((p) => p.id === selectedPostId);
+  const selectedPost = posts.find((p: any) => p.id === selectedPostId);
 
   const showToast = (text: any, title = t.noticeTitle, highlight = "") => {
     setToastData({ text, title, highlight });
@@ -786,7 +786,7 @@ export default function App() {
       });
 
       const filtered = realPosts.filter(
-        (p) =>
+        (p: any) =>
           !(userProfile.blockedUsers || []).includes(p.authorId) &&
           !(p.reportedBy && p.reportedBy.length >= 10)
       );
@@ -900,7 +900,7 @@ export default function App() {
   const hasActiveStory = (authorUid: any) => {
     const now = Date.now();
     return posts.some(
-      (p) =>
+      (p: any) =>
         p.authorId === authorUid &&
         p.isStory &&
         now - p.timestamp < 24 * 60 * 60 * 1000
@@ -916,7 +916,7 @@ export default function App() {
             e.stopPropagation();
             const userStories = posts
               .filter(
-                (p) =>
+                (p: any) =>
                   p.authorId === uid &&
                   p.isStory &&
                   Date.now() - p.timestamp < 24 * 60 * 60 * 1000
@@ -1046,7 +1046,7 @@ export default function App() {
   const handleReportPost = async (postId: any) => {
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
-    const post = posts.find((p) => p.id === postId);
+    const post = posts.find((p: any) => p.id === postId);
     if (!post) return;
     const newReportedBy = [...(post.reportedBy || []), currentUserId];
 
@@ -1116,7 +1116,7 @@ export default function App() {
     if (!window.confirm(t.deleteConfirm)) return;
     try {
       const myPosts = posts.filter(
-        (p) => p.authorId === currentUserId || p.author === currentUserTag
+        (p: any) => p.authorId === currentUserId || p.author === currentUserTag
       );
       for (let p of myPosts) {
         if (typeof p.id !== "number") {
@@ -1154,7 +1154,7 @@ export default function App() {
 
   const handleReportComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p) => p.id === postId);
+    const post = posts.find((p: any) => p.id === postId);
     if (!post) return;
     const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
@@ -1179,7 +1179,7 @@ export default function App() {
 
   const handleDeleteComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p) => p.id === postId);
+    const post = posts.find((p: any) => p.id === postId);
     if (!post) return;
     const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
@@ -1191,7 +1191,7 @@ export default function App() {
 
   const handleCommentReaction = async (postId: any, commentId: any, type: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p) => p.id === postId);
+    const post = posts.find((p: any) => p.id === postId);
     if (!post) return;
     let deductedKarma = 0;
     const updatedComments = post.comments.map((c: any) => {
@@ -1469,7 +1469,7 @@ export default function App() {
     e.stopPropagation();
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
-    const post = posts.find((p) => p.id === postId);
+    const post = posts.find((p: any) => p.id === postId);
     if (!post) return;
     const isCurrentlyLiked = post.hasLiked;
     try {
@@ -1898,7 +1898,7 @@ export default function App() {
     let displayPosts = [];
     if (feedTab === "foryou") {
       displayPosts = [...posts]
-        .filter((p) => !p.isStory)
+        .filter((p: any) => !p.isStory)
         .sort((a, b) => {
           if (a.boosted && !b.boosted) return -1;
           if (!a.boosted && b.boosted) return 1;
@@ -1917,7 +1917,7 @@ export default function App() {
     } else {
       displayPosts = posts
         .filter(
-          (p) => !p.isStory && (following.includes(p.authorId) || p.isMine)
+          (p: any) => !p.isStory && (following.includes(p.authorId) || p.isMine)
         )
         .sort((a, b) => b.timestamp - a.timestamp);
     }
@@ -2313,14 +2313,14 @@ export default function App() {
     if (selectedPost.isStory) {
       activeStories = posts
         .filter(
-          (p) =>
+          (p: any) =>
             p.authorId === selectedPost.authorId &&
             p.isStory &&
             Date.now() - p.timestamp < 24 * 60 * 60 * 1000
         )
         .sort((a, b) => a.timestamp - b.timestamp);
       currentStoryIndex = activeStories.findIndex(
-        (p) => p.id === selectedPost.id
+        (p: any) => p.id === selectedPost.id
       );
     }
 
@@ -2836,7 +2836,7 @@ export default function App() {
     const intentLabel = t.intents.find((i) => i.id === pIntent)?.label || "";
 
     const specificUserPosts = posts.filter(
-      (p) =>
+      (p: any) =>
         (isMyProfile ? p.isMine : p.authorId === viewingProfileAuthor) &&
         !p.isStory
     );
@@ -3048,7 +3048,7 @@ export default function App() {
                     );
 
                     const myPostsToSync = posts.filter(
-                      (p) =>
+                      (p: any) =>
                         p.authorId === currentUserId ||
                         p.author === currentUserTag
                     );
@@ -3175,7 +3175,7 @@ export default function App() {
               <button
                 className="w-full bg-white border border-gray-200 text-gray-700 font-bold p-4 rounded-2xl active:scale-95 transition-transform"
                 onClick={() => {
-                  const myPosts = posts.filter((p) => p.isMine && !p.isStory);
+                  const myPosts = posts.filter((p: any) => p.isMine && !p.isStory);
                   if (myPosts.length > 0) {
                     handleBoost(myPosts[0].id);
                   } else {
