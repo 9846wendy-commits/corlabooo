@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useRef } from "react";
 import {
   Home,
@@ -31,7 +30,7 @@ import {
   Mic,
   Bell,
 } from "lucide-react";
-// @ts-ignore
+
 import { auth, db, googleProvider } from "./firebase";
 import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -48,6 +47,7 @@ import {
   query,
   orderBy,
   where,
+  limit,
 } from "firebase/firestore";
 
 // --- 多國語言字典 (i18n) ---
@@ -172,7 +172,7 @@ const locales = {
     commentPlaceholder: (lang) => `請以「${lang}」說點什麼...`,
     aiValidating: "AI 驗證中...",
     submitSuggestBtn: "送出建議 (+10🧼)",
-    submitSuggestBtnNoPoints: "送出建議", // 🌟 新增
+    submitSuggestBtnNoPoints: "送出建議",
     invalidSuggestWarning: "這似乎不是一個有效的語言修改建議喔！",
     invalidSuggestSub: "請提供正確的建議，才能獲得點數🧼",
     gotItBtn: "我知道了",
@@ -205,9 +205,12 @@ const locales = {
     noNotifications: "目前沒有新通知喔",
     followedYou: "追蹤了你",
     followBack: "回追",
-    // 🌟 新增語系
     nonNativeWarning: "這並非您的母語，建議由母語者來糾錯喔！",
     practiceLangWarning: "練習貼文請使用您正在學習的語言喔！",
+    commentedYourPost: "留言了你的貼文",
+    correctedYourPost: "為你的貼文提供了建議",
+    sentImage: "傳送了圖片",
+    you: "你: ",
   },
   English: {
     step2Title: "Set Up Profile",
@@ -332,7 +335,7 @@ const locales = {
     commentPlaceholder: (lang) => `Say something in ${lang}...`,
     aiValidating: "AI Validating...",
     submitSuggestBtn: "Submit Suggestion (+10🧼)",
-    submitSuggestBtnNoPoints: "Submit Suggestion", // 🌟 新增
+    submitSuggestBtnNoPoints: "Submit Suggestion",
     invalidSuggestWarning:
       "This doesn't seem like a valid language suggestion!",
     invalidSuggestSub: "Please provide helpful suggestions to earn points🧼",
@@ -366,11 +369,14 @@ const locales = {
     noNotifications: "No new notifications",
     followedYou: "started following you",
     followBack: "Follow Back",
-    // 🌟 新增語系
     nonNativeWarning:
       "This is not your native language. We recommend letting a native speaker correct it!",
     practiceLangWarning:
       "Please use your learning language for practice posts!",
+    commentedYourPost: "commented on your post",
+    correctedYourPost: "corrected your post",
+    sentImage: "Sent an image",
+    you: "You: ",
   },
 };
 
@@ -477,9 +483,27 @@ const MascotSVG = ({
   </svg>
 );
 
+const getRelativeTime = (timestamp, lang) => {
+  if (!timestamp) return lang === "繁體中文" ? "剛剛" : "Just now";
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (minutes < 1) return lang === "繁體中文" ? "剛剛" : "Just now";
+  if (minutes < 60)
+    return lang === "繁體中文" ? `${minutes} 分鐘前` : `${minutes}m ago`;
+  if (hours < 24)
+    return lang === "繁體中文" ? `${hours} 小時前` : `${hours}h ago`;
+  return lang === "繁體中文" ? `${days} 天前` : `${days}d ago`;
+};
+
 export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const currentUserId = currentUser?.uid || "guest";
+
   const [currentView, setCurrentView] = useState("onboarding");
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [systemLang, setSystemLang] = useState("繁體中文");
@@ -500,6 +524,8 @@ export default function App() {
     unlockedAccessories: [],
     equippedAccessory: null,
     blockedUsers: [],
+    helped: 0,
+    unreadChats: [],
   });
 
   const [allUsersDict, setAllUsersDict] = useState({});
@@ -508,6 +534,8 @@ export default function App() {
   const [followers, setFollowers] = useState([]);
   const [mutualFriends, setMutualFriends] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [myNotifications, setMyNotifications] = useState([]);
+  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
 
   const [posts, setPosts] = useState([]);
   const postsCollectionRef = collection(db, "posts");
@@ -517,8 +545,11 @@ export default function App() {
   }`;
 
   const [viewingProfileAuthor, setViewingProfileAuthor] = useState("me");
+
   const isMyProfile =
-    viewingProfileAuthor === "me" || viewingProfileAuthor === currentUserTag;
+    viewingProfileAuthor === "me" ||
+    viewingProfileAuthor === currentUserId ||
+    viewingProfileAuthor === currentUserTag;
 
   const [feedTab, setFeedTab] = useState("foryou");
   const [selectedPostId, setSelectedPostId] = useState(null);
@@ -550,6 +581,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState({});
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [activeReactionMsg, setActiveReactionMsg] = useState(null);
+  const [latestMessages, setLatestMessages] = useState({});
   const pressTimer = useRef(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -559,6 +591,11 @@ export default function App() {
   const [tempName, setTempName] = useState("");
   const [tempBio, setTempBio] = useState("");
   const [tempColorIndex, setTempColorIndex] = useState(0);
+  // 🌟 編輯模式的全新狀態！
+  const [tempAge, setTempAge] = useState("");
+  const [tempGender, setTempGender] = useState("");
+  const [tempIntent, setTempIntent] = useState("");
+  const [tempInterests, setTempInterests] = useState([]);
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -567,6 +604,25 @@ export default function App() {
 
   const showToast = (text, title = t.noticeTitle, highlight = "") => {
     setToastData({ text, title, highlight });
+  };
+
+  const getUserDisplayName = (uidOrTag) => {
+    if (
+      uidOrTag === currentUserId ||
+      uidOrTag === "me" ||
+      uidOrTag === currentUserTag
+    ) {
+      return `${userProfile.name || "User"} ${
+        userProfile.native === "繁體中文" ? "🇹🇼" : "🇺🇸"
+      }`;
+    }
+    const userFromDict = allUsersDict[uidOrTag];
+    if (userFromDict) {
+      return `${userFromDict.name || "User"} ${
+        userFromDict.native === "繁體中文" ? "🇹🇼" : "🇺🇸"
+      }`;
+    }
+    return uidOrTag;
   };
 
   useEffect(() => {
@@ -595,6 +651,8 @@ export default function App() {
               unlockedAccessories: userData.unlockedAccessories || [],
               equippedAccessory: userData.equippedAccessory || null,
               blockedUsers: userData.blockedUsers || [],
+              helped: userData.helped || 0,
+              unreadChats: userData.unreadChats || [],
             });
             setSystemLang(
               userData.native === "繁體中文" ? "繁體中文" : "English"
@@ -624,7 +682,8 @@ export default function App() {
     const unsub = onSnapshot(collection(db, "users"), (snap) => {
       const dict = {};
       snap.forEach((doc) => {
-        dict[doc.id] = doc.data();
+        const data = doc.data();
+        dict[data.uid || doc.id] = data;
       });
       setAllUsersDict(dict);
     });
@@ -645,8 +704,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (currentView === "onboarding" || !currentUserTag) return;
-    const userDocRef = doc(db, "users", currentUserTag);
+    if (currentView === "onboarding" || currentUserId === "guest") return;
+    const userDocRef = doc(db, "users", currentUserId);
     const unsub = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -656,31 +715,70 @@ export default function App() {
         setFollowers(f_ers);
         const mutuals = f_ing.filter((f) => f_ers.includes(f));
         setMutualFriends(mutuals);
+        setMyNotifications(data.notifications || []);
+        setHasUnreadNotifs(data.hasUnreadNotifs || false);
+        setHasUnreadMessages(data.hasUnreadMessages || false);
+        setUserProfile((prev) => ({
+          ...prev,
+          unreadChats: data.unreadChats || [],
+        }));
       }
     });
     return () => unsub();
-  }, [currentUserTag, currentView]);
+  }, [currentUserId, currentView]);
 
   useEffect(() => {
+    if (mutualFriends.length === 0 || currentUserId === "guest") return;
+    const unsubs = mutualFriends.map((friendUid) => {
+      const chatId = [currentUserId, friendUid].sort().join("_");
+      const q = query(
+        collection(db, "chats", chatId, "messages"),
+        orderBy("timestamp", "desc"),
+        limit(1)
+      );
+      return onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          const msg = snap.docs[0].data();
+          setLatestMessages((prev) => ({ ...prev, [friendUid]: msg }));
+        }
+      });
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [mutualFriends, currentUserId]);
+
+  useEffect(() => {
+    if (currentUserId === "guest") return;
     const unsubscribe = onSnapshot(postsCollectionRef, (snapshot) => {
       const realPosts = snapshot.docs.map((doc) => {
         const data = doc.data();
         const postLikedBy = data.likedBy || [];
+
+        const authorId = data.authorId || data.author || "unknown";
+
         return {
           ...data,
           id: doc.id,
-          isMine: data.author === currentUserTag,
+          authorId: authorId,
+          isMine: authorId === currentUserId || authorId === currentUserTag,
           likes: postLikedBy.length,
-          hasLiked: postLikedBy.includes(currentUserTag),
+          hasLiked:
+            postLikedBy.includes(currentUserId) ||
+            postLikedBy.includes(currentUserTag),
           comments: (data.comments || []).map((c) => {
             const cLikedBy = c.likedBy || [];
             const cDislikedBy = c.dislikedBy || [];
+            const cAuthorId = c.authorId || c.author || "unknown";
             return {
               ...c,
+              authorId: cAuthorId,
               likes: cLikedBy.length,
               dislikes: cDislikedBy.length,
-              hasLiked: cLikedBy.includes(currentUserTag),
-              hasDisliked: cDislikedBy.includes(currentUserTag),
+              hasLiked:
+                cLikedBy.includes(currentUserId) ||
+                cLikedBy.includes(currentUserTag),
+              hasDisliked:
+                cDislikedBy.includes(currentUserId) ||
+                cDislikedBy.includes(currentUserTag),
             };
           }),
         };
@@ -688,17 +786,14 @@ export default function App() {
 
       const filtered = realPosts.filter(
         (p) =>
-          !(userProfile.blockedUsers || []).includes(p.author) &&
+          !(userProfile.blockedUsers || []).includes(p.authorId) &&
           !(p.reportedBy && p.reportedBy.length >= 10)
       );
       setPosts(filtered);
     });
     return () => unsubscribe();
-  }, [currentUserTag, userProfile.blockedUsers]);
+  }, [currentUserId, userProfile.blockedUsers, currentUserTag]);
 
-  // =======================================================
-  // 🌟 終極聊天室自動置底輔助函式
-  // =======================================================
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -712,15 +807,18 @@ export default function App() {
             block: "end",
           });
         }
-      }, 150);
+      }, 100);
     });
   };
 
-  const currentMessages = activeChatUser ? chatMessages[activeChatUser] : [];
-
   useEffect(() => {
-    if (currentView !== "chatRoom" || !activeChatUser) return;
-    const chatId = [currentUserTag, activeChatUser].sort().join("_");
+    if (
+      currentView !== "chatRoom" ||
+      !activeChatUser ||
+      currentUserId === "guest"
+    )
+      return;
+    const chatId = [currentUserId, activeChatUser].sort().join("_");
     const q = query(
       collection(db, "chats", chatId, "messages"),
       orderBy("timestamp", "asc")
@@ -732,15 +830,13 @@ export default function App() {
     });
 
     return () => unsub();
-  }, [activeChatUser, currentView, currentUserTag]);
+  }, [activeChatUser, currentView, currentUserId]);
 
   useEffect(() => {
     if (currentView === "chatRoom") {
       scrollToBottom();
     }
-  }, [currentMessages, currentView]);
-
-  // =======================================================
+  }, [chatMessages, activeChatUser, currentView]);
 
   const callGemini = async (prompt) => {
     setIsAiLoading(true);
@@ -767,10 +863,11 @@ export default function App() {
     }
   };
 
-  const UserAvatar = ({ name, className }) => {
+  const UserAvatar = ({ uid, className }) => {
     let palette = PALETTES[0];
     let accEmoji = null;
-    const isMe = name === currentUserTag || name === "me";
+    const isMe =
+      uid === currentUserId || uid === "me" || uid === currentUserTag;
 
     if (isMe) {
       palette = PALETTES[userProfile.colorIndex || 0] || PALETTES[0];
@@ -779,7 +876,7 @@ export default function App() {
       );
       if (acc) accEmoji = acc.emoji;
     } else {
-      const targetUser = allUsersDict[name];
+      const targetUser = allUsersDict[uid];
       if (targetUser) {
         palette = PALETTES[targetUser.colorIndex || 0] || PALETTES[0];
         const acc = ACCESSORIES.find(
@@ -799,18 +896,18 @@ export default function App() {
     );
   };
 
-  const hasActiveStory = (authorName) => {
+  const hasActiveStory = (authorUid) => {
     const now = Date.now();
     return posts.some(
       (p) =>
-        p.author === authorName &&
+        p.authorId === authorUid &&
         p.isStory &&
         now - p.timestamp < 24 * 60 * 60 * 1000
     );
   };
 
-  const StoryAvatar = ({ name, sizeClass = "w-10 h-10", onClick }) => {
-    const active = hasActiveStory(name);
+  const StoryAvatar = ({ uid, sizeClass = "w-10 h-10", onClick }) => {
+    const active = hasActiveStory(uid);
     return (
       <div
         onClick={(e) => {
@@ -819,7 +916,7 @@ export default function App() {
             const userStories = posts
               .filter(
                 (p) =>
-                  p.author === name &&
+                  p.authorId === uid &&
                   p.isStory &&
                   Date.now() - p.timestamp < 24 * 60 * 60 * 1000
               )
@@ -843,7 +940,7 @@ export default function App() {
             active ? "p-[2px]" : ""
           }`}
         >
-          <UserAvatar name={name} className={sizeClass} />
+          <UserAvatar uid={uid} className={sizeClass} />
         </div>
       </div>
     );
@@ -852,10 +949,10 @@ export default function App() {
   const handleStart = async () => {
     try {
       await setDoc(
-        doc(db, "users", currentUserTag),
+        doc(db, "users", currentUserId),
         {
           ...userProfile,
-          uid: currentUser?.uid,
+          uid: currentUserId,
           following: following,
           followers: followers,
           timestamp: Date.now(),
@@ -896,7 +993,6 @@ export default function App() {
     }
     if (!newPostText.trim() && !selectedImage) return;
 
-    // 🌟 1. 新增：發布前語言驗證邏輯 (限定練習文必須為學習語言)
     if (postIntent === "practice" && newPostText.trim()) {
       let isLearningLang = true;
       if (
@@ -923,6 +1019,7 @@ export default function App() {
 
     try {
       await addDoc(postsCollectionRef, {
+        authorId: currentUserId,
         author: currentUserTag,
         content: newPostText,
         image: selectedImage,
@@ -950,14 +1047,14 @@ export default function App() {
     const postRef = doc(db, "posts", postId);
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
-    const newReportedBy = [...(post.reportedBy || []), currentUserTag];
+    const newReportedBy = [...(post.reportedBy || []), currentUserId];
 
     try {
       if (newReportedBy.length >= 10) {
         await deleteDoc(postRef);
         showToast("該貼文因檢舉人數過多已全域移除", t.noticeTitle);
       } else {
-        await updateDoc(postRef, { reportedBy: arrayUnion(currentUserTag) });
+        await updateDoc(postRef, { reportedBy: arrayUnion(currentUserId) });
         showToast(t.reportSuccess, t.successTitle);
       }
       setShowActionMenu(null);
@@ -970,19 +1067,26 @@ export default function App() {
     }
   };
 
-  const handleBlockUser = async (targetAuthor) => {
-    if (targetAuthor === currentUserTag) return;
+  const handleBlockUser = async (targetAuthorUid) => {
+    if (targetAuthorUid === currentUserId) return;
     setUserProfile((prev) => ({
       ...prev,
-      blockedUsers: [...(prev.blockedUsers || []), targetAuthor],
+      blockedUsers: [...(prev.blockedUsers || []), targetAuthorUid],
     }));
     try {
       await addDoc(collection(db, "user_reports"), {
-        reportedUser: targetAuthor,
-        reporter: currentUserTag,
+        reportedUser: targetAuthorUid,
+        reporter: currentUserId,
         timestamp: Date.now(),
         type: "block",
       });
+      await setDoc(
+        doc(db, "users", currentUserId),
+        {
+          blockedUsers: arrayUnion(targetAuthorUid),
+        },
+        { merge: true }
+      );
       showToast(t.blockSuccess, t.successTitle);
       setShowActionMenu(null);
       setCurrentView("feed");
@@ -991,12 +1095,12 @@ export default function App() {
     }
   };
 
-  const handleReportUser = async (targetAuthor) => {
-    if (targetAuthor === currentUserTag) return;
+  const handleReportUser = async (targetAuthorUid) => {
+    if (targetAuthorUid === currentUserId) return;
     try {
       await addDoc(collection(db, "user_reports"), {
-        reportedUser: targetAuthor,
-        reporter: currentUserTag,
+        reportedUser: targetAuthorUid,
+        reporter: currentUserId,
         timestamp: Date.now(),
         type: "report",
       });
@@ -1010,13 +1114,15 @@ export default function App() {
   const handleDeleteAccount = async () => {
     if (!window.confirm(t.deleteConfirm)) return;
     try {
-      const myPosts = posts.filter((p) => p.author === currentUserTag);
+      const myPosts = posts.filter(
+        (p) => p.authorId === currentUserId || p.author === currentUserTag
+      );
       for (let p of myPosts) {
         if (typeof p.id !== "number") {
           await deleteDoc(doc(db, "posts", p.id));
         }
       }
-      await deleteDoc(doc(db, "users", currentUserTag));
+      await deleteDoc(doc(db, "users", currentUserId));
       if (auth.currentUser) await signOut(auth);
 
       setUserProfile({
@@ -1033,6 +1139,8 @@ export default function App() {
         unlockedAccessories: [],
         equippedAccessory: null,
         blockedUsers: [],
+        helped: 0,
+        unreadChats: [],
       });
       setCurrentUser(null);
       setCurrentView("onboarding");
@@ -1089,28 +1197,28 @@ export default function App() {
       if (c.id === commentId) {
         let likedBy = [...(c.likedBy || [])];
         let dislikedBy = [...(c.dislikedBy || [])];
-        const hasLiked = likedBy.includes(currentUserTag);
-        const hasDisliked = dislikedBy.includes(currentUserTag);
+        const hasLiked = likedBy.includes(currentUserId);
+        const hasDisliked = dislikedBy.includes(currentUserId);
         if (type === "like") {
           if (hasLiked) {
-            likedBy = likedBy.filter((u) => u !== currentUserTag);
+            likedBy = likedBy.filter((u) => u !== currentUserId);
           } else {
-            likedBy.push(currentUserTag);
-            dislikedBy = dislikedBy.filter((u) => u !== currentUserTag);
+            likedBy.push(currentUserId);
+            dislikedBy = dislikedBy.filter((u) => u !== currentUserId);
           }
         } else if (type === "dislike") {
           if (hasDisliked) {
-            dislikedBy = dislikedBy.filter((u) => u !== currentUserTag);
+            dislikedBy = dislikedBy.filter((u) => u !== currentUserId);
           } else {
-            dislikedBy.push(currentUserTag);
-            likedBy = likedBy.filter((u) => u !== currentUserTag);
+            dislikedBy.push(currentUserId);
+            likedBy = likedBy.filter((u) => u !== currentUserId);
           }
         }
         const netScore = likedBy.length - dislikedBy.length;
         let hidden = c.hiddenByCommunity || false;
         if (dislikedBy.length > likedBy.length && netScore < -5 && !hidden) {
           hidden = true;
-          if (c.author === currentUserTag) {
+          if (c.authorId === currentUserId) {
             deductedKarma = 20;
           }
         }
@@ -1180,7 +1288,7 @@ export default function App() {
 
     const newComment = {
       id: Date.now(),
-      author: currentUserTag,
+      authorId: currentUserId,
       text: draftText,
       time: t.justNow,
       isCorrection: false,
@@ -1192,12 +1300,29 @@ export default function App() {
       await updateDoc(doc(db, "posts", selectedPostId), {
         comments: arrayUnion(newComment),
       });
+
+      if (selectedPost.authorId !== currentUserId) {
+        await setDoc(
+          doc(db, "users", selectedPost.authorId),
+          {
+            notifications: arrayUnion({
+              id: Date.now(),
+              type: "comment",
+              from: currentUserId,
+              postId: selectedPostId,
+              timestamp: Date.now(),
+            }),
+            hasUnreadNotifs: true,
+          },
+          { merge: true }
+        );
+      }
+
       setDraftText("");
       setShowCommentModal(false);
     } catch (error) {}
   };
 
-  // 🌟 2. 修正：留言與糾錯的權限判斷與分數發放
   const submitCorrection = async () => {
     if (!correctionText.trim()) return;
     if (
@@ -1215,7 +1340,7 @@ export default function App() {
 
     const newComment = {
       id: Date.now(),
-      author: currentUserTag,
+      authorId: currentUserId,
       text: correctionText,
       time: t.justNow,
       isCorrection: true,
@@ -1225,17 +1350,41 @@ export default function App() {
       hiddenByCommunity: false,
     };
     const hasCorrectedBefore = selectedPost.comments.some(
-      (c) => c.author === currentUserTag && c.isCorrection
+      (c) => c.authorId === currentUserId && c.isCorrection
     );
 
     try {
       await updateDoc(doc(db, "posts", selectedPostId), {
         comments: arrayUnion(newComment),
       });
+
+      if (selectedPost.authorId !== currentUserId) {
+        await setDoc(
+          doc(db, "users", selectedPost.authorId),
+          {
+            notifications: arrayUnion({
+              id: Date.now(),
+              type: "correction",
+              from: currentUserId,
+              postId: selectedPostId,
+              timestamp: Date.now(),
+            }),
+            hasUnreadNotifs: true,
+          },
+          { merge: true }
+        );
+      }
+
       if (!hasCorrectedBefore) {
         if (isNativeResponder) {
           showToast(t.correctionSuccess, t.successTitle);
           setKarmaPoints((prev) => prev + 10);
+
+          const newHelpedCount = (userProfile.helped || 0) + 1;
+          setUserProfile((prev) => ({ ...prev, helped: newHelpedCount }));
+          await updateDoc(doc(db, "users", currentUserId), {
+            helped: newHelpedCount,
+          });
         } else {
           showToast(t.nonNativeWarning, t.noticeTitle);
         }
@@ -1287,18 +1436,31 @@ export default function App() {
 
   const handleFollow = async () => {
     if (following.includes(viewingProfileAuthor)) return;
+    try {
+      await setDoc(
+        doc(db, "users", currentUserId),
+        {
+          following: arrayUnion(viewingProfileAuthor),
+        },
+        { merge: true }
+      );
 
-    await updateDoc(doc(db, "users", currentUserTag), {
-      following: arrayUnion(viewingProfileAuthor),
-    });
-    await updateDoc(doc(db, "users", viewingProfileAuthor), {
-      followers: arrayUnion(currentUserTag),
-    });
+      await setDoc(
+        doc(db, "users", viewingProfileAuthor),
+        {
+          followers: arrayUnion(currentUserId),
+        },
+        { merge: true }
+      );
 
-    if (followers.includes(viewingProfileAuthor)) {
-      showToast(t.followMutualSuccess, t.successTitle);
-    } else {
-      showToast(t.followSuccess, t.successTitle);
+      if (followers.includes(viewingProfileAuthor)) {
+        showToast(t.followMutualSuccess, t.successTitle);
+      } else {
+        showToast(t.followSuccess, t.successTitle);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("操作失敗，可能是舊帳號未同步，請重試", "系統提示");
     }
   };
 
@@ -1312,35 +1474,54 @@ export default function App() {
     try {
       await updateDoc(postRef, {
         likedBy: isCurrentlyLiked
-          ? arrayRemove(currentUserTag)
-          : arrayUnion(currentUserTag),
+          ? arrayRemove(currentUserId)
+          : arrayUnion(currentUserId),
       });
     } catch (error) {}
   };
 
+  const openChat = (uid) => {
+    setActiveChatUser(uid);
+    setCurrentView("chatRoom");
+    if (userProfile.unreadChats?.includes(uid)) {
+      updateDoc(doc(db, "users", currentUserId), {
+        unreadChats: arrayRemove(uid),
+      });
+    }
+  };
+
   const handleDMClick = () => {
     if (mutualFriends.includes(viewingProfileAuthor)) {
-      setActiveChatUser(viewingProfileAuthor);
-      setCurrentView("chatRoom");
+      openChat(viewingProfileAuthor);
       setHasUnreadMessages(false);
     } else {
       showToast(t.dmLocked, t.noticeTitle);
     }
   };
 
-  const handleSendChatMessage = async () => {
+  const handleSendChatMessage = () => {
     if (!chatInput.trim() || !activeChatUser) return;
-    const chatId = [currentUserTag, activeChatUser].sort().join("_");
+    const textToSend = chatInput;
+    setChatInput("");
+
+    const chatId = [currentUserId, activeChatUser].sort().join("_");
     const newMsg = {
-      sender: currentUserTag,
-      text: chatInput,
+      sender: currentUserId,
+      text: textToSend,
       timestamp: Date.now(),
       time: t.justNow,
     };
 
     try {
-      await addDoc(collection(db, "chats", chatId, "messages"), newMsg);
-      setChatInput("");
+      addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+      setDoc(
+        doc(db, "users", activeChatUser),
+        {
+          hasUnreadMessages: true,
+          unreadChats: arrayUnion(currentUserId),
+        },
+        { merge: true }
+      );
     } catch (e) {
       console.error("發送訊息失敗", e);
     }
@@ -1350,17 +1531,25 @@ export default function App() {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        const chatId = [currentUserTag, activeChatUser].sort().join("_");
+      reader.onloadend = () => {
+        const chatId = [currentUserId, activeChatUser].sort().join("_");
         const newMsg = {
-          sender: currentUserTag,
+          sender: currentUserId,
           text: "",
           image: reader.result,
           timestamp: Date.now(),
           time: t.justNow,
         };
         try {
-          await addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+          addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+          setDoc(
+            doc(db, "users", activeChatUser),
+            {
+              hasUnreadMessages: true,
+              unreadChats: arrayUnion(currentUserId),
+            },
+            { merge: true }
+          );
         } catch (err) {}
       };
       reader.readAsDataURL(file);
@@ -1373,7 +1562,7 @@ export default function App() {
     try {
       await addDoc(collection(db, "feedbacks"), {
         text: feedbackText,
-        author: userProfile.name || "未命名用戶",
+        authorId: currentUserId,
         timestamp: Date.now(),
         time: new Date().toLocaleString(),
       });
@@ -1393,7 +1582,7 @@ export default function App() {
   };
 
   const handleReactToMsg = async (msgId, emoji) => {
-    const chatId = [currentUserTag, activeChatUser].sort().join("_");
+    const chatId = [currentUserId, activeChatUser].sort().join("_");
     try {
       await updateDoc(doc(db, "chats", chatId, "messages", msgId), {
         reaction: emoji,
@@ -1707,15 +1896,12 @@ export default function App() {
   const renderFeed = () => {
     let displayPosts = [];
     if (feedTab === "foryou") {
-      // 🌟 3. 修正：動態牆演算法降權 (Feed Sorting Algorithm)
       displayPosts = [...posts]
         .filter((p) => !p.isStory)
         .sort((a, b) => {
-          // 1. 置頂狀態
           if (a.boosted && !b.boosted) return -1;
           if (!a.boosted && b.boosted) return 1;
 
-          // 2. 語言權重 (學習語言 > 其他 > 母語)
           const getLangScore = (lang) => {
             if (lang === userProfile.learning) return 2;
             if (lang === userProfile.native) return 0;
@@ -1725,17 +1911,13 @@ export default function App() {
           const scoreLangB = getLangScore(b.lang);
           if (scoreLangA !== scoreLangB) return scoreLangB - scoreLangA;
 
-          // 3. 互動分數
-          const scoreA = (a.likes || 0) + (a.comments?.length || 0) * 3;
-          const scoreB = (b.likes || 0) + (b.comments?.length || 0) * 3;
-          if (scoreA !== scoreB) return scoreB - scoreA;
-
-          // 4. 發布時間
           return b.timestamp - a.timestamp;
         });
     } else {
       displayPosts = posts
-        .filter((p) => !p.isStory && (following.includes(p.author) || p.isMine))
+        .filter(
+          (p) => !p.isStory && (following.includes(p.authorId) || p.isMine)
+        )
         .sort((a, b) => b.timestamp - a.timestamp);
     }
 
@@ -1755,11 +1937,18 @@ export default function App() {
               </div>
 
               <button
-                onClick={() => setShowNotifications(true)}
+                onClick={() => {
+                  setShowNotifications(true);
+                  if (hasUnreadNotifs) {
+                    updateDoc(doc(db, "users", currentUserId), {
+                      hasUnreadNotifs: false,
+                    });
+                  }
+                }}
                 className="relative text-gray-400 hover:text-purple-600 transition-colors"
               >
                 <Bell className="w-6 h-6" />
-                {pendingFollowers.length > 0 && (
+                {(pendingFollowers.length > 0 || hasUnreadNotifs) && (
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-pink-500 rounded-full border-2 border-white"></span>
                 )}
               </button>
@@ -1768,11 +1957,16 @@ export default function App() {
                 onClick={() => {
                   setCurrentView("chatList");
                   setHasUnreadMessages(false);
+                  if (hasUnreadMessages) {
+                    updateDoc(doc(db, "users", currentUserId), {
+                      hasUnreadMessages: false,
+                    });
+                  }
                 }}
                 className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 relative"
               >
                 <Send className="w-4 h-4 -ml-0.5 mt-0.5" />
-                {hasUnreadMessages && (
+                {(hasUnreadMessages || userProfile.unreadChats?.length > 0) && (
                   <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-pink-500 rounded-full border-2 border-white"></span>
                 )}
               </button>
@@ -1842,17 +2036,18 @@ export default function App() {
             className="flex items-center cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
-              setViewingProfileAuthor(post.author);
+              setViewingProfileAuthor(post.authorId);
               setCurrentView("profile");
             }}
           >
-            <StoryAvatar name={post.author} sizeClass="w-10 h-10" />
+            <StoryAvatar uid={post.authorId} sizeClass="w-10 h-10" />
             <div className="ml-3">
               <p className="font-bold text-gray-800 leading-tight">
-                {post.author}
+                {getUserDisplayName(post.authorId)}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">
-                {post.time} · {isPractice ? t.intentPractice : t.intentShare}
+                {getRelativeTime(post.timestamp, systemLang)} ·{" "}
+                {isPractice ? t.intentPractice : t.intentShare}
               </p>
             </div>
           </div>
@@ -2118,7 +2313,7 @@ export default function App() {
       activeStories = posts
         .filter(
           (p) =>
-            p.author === selectedPost.author &&
+            p.authorId === selectedPost.authorId &&
             p.isStory &&
             Date.now() - p.timestamp < 24 * 60 * 60 * 1000
         )
@@ -2134,8 +2329,6 @@ export default function App() {
     const canUseAiSummary =
       selectedPost.isMine && correctionComments.length > 0;
     const isPractice = selectedPost.postIntent === "practice";
-
-    // 🌟 2. 判斷留言與糾錯的權限：是否為母語者
     const isNativeResponder = userProfile.native === selectedPost.lang;
 
     return (
@@ -2219,19 +2412,21 @@ export default function App() {
           <div
             className="flex items-center mb-6 cursor-pointer"
             onClick={() => {
-              setViewingProfileAuthor(selectedPost.author);
+              setViewingProfileAuthor(selectedPost.authorId);
               setCurrentView("profile");
             }}
           >
             <StoryAvatar
-              name={selectedPost.author}
+              uid={selectedPost.authorId}
               className="w-12 h-12 drop-shadow-sm"
             />
             <div className="ml-3">
               <p className="font-bold text-gray-800 text-lg">
-                {selectedPost.author}
+                {getUserDisplayName(selectedPost.authorId)}
               </p>
-              <p className="text-xs text-gray-400">{selectedPost.time}</p>
+              <p className="text-xs text-gray-400">
+                {getRelativeTime(selectedPost.timestamp, systemLang)}
+              </p>
             </div>
           </div>
 
@@ -2306,12 +2501,12 @@ export default function App() {
                     <div
                       className="w-8 h-8 shrink-0 cursor-pointer"
                       onClick={() => {
-                        setViewingProfileAuthor(c.author);
+                        setViewingProfileAuthor(c.authorId);
                         setCurrentView("profile");
                       }}
                     >
                       <UserAvatar
-                        name={c.author}
+                        uid={c.authorId}
                         className="w-8 h-8 shrink-0"
                       />
                     </div>
@@ -2326,11 +2521,11 @@ export default function App() {
                         <span
                           className="font-bold text-sm text-gray-800 cursor-pointer"
                           onClick={() => {
-                            setViewingProfileAuthor(c.author);
+                            setViewingProfileAuthor(c.authorId);
                             setCurrentView("profile");
                           }}
                         >
-                          {c.author}
+                          {getUserDisplayName(c.authorId)}
                         </span>
                         <button
                           onClick={(e) => {
@@ -2353,7 +2548,7 @@ export default function App() {
                             }}
                           ></div>
                           <div className="absolute top-10 right-4 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-30 flex flex-col w-36">
-                            {c.author === currentUserTag ||
+                            {c.authorId === currentUserId ||
                             selectedPost.isMine ? (
                               <button
                                 onClick={(e) => {
@@ -2480,7 +2675,6 @@ export default function App() {
             <MessageCircle className="w-5 h-5" /> {t.commentBtn}
           </button>
 
-          {/* 🌟 2. 修正：當貼文是 Share 時，會完全隱藏糾錯按鈕；Practice 則根據身分顯示按鈕文字 */}
           {isPractice && (
             <button
               onClick={() => setShowCorrectionModal(true)}
@@ -2569,7 +2763,6 @@ export default function App() {
                 disabled={!correctionText.trim()}
                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg disabled:opacity-50 flex justify-center items-center gap-2 shrink-0 active:scale-95 transition-transform"
               >
-                {/* 🌟 2. 修正：根據是否為母語者顯示送出按鈕文字 */}
                 {isNativeResponder
                   ? t.submitSuggestBtn
                   : t.submitSuggestBtnNoPoints}
@@ -2643,7 +2836,7 @@ export default function App() {
 
     const specificUserPosts = posts.filter(
       (p) =>
-        (isMyProfile ? p.isMine : p.author === viewingProfileAuthor) &&
+        (isMyProfile ? p.isMine : p.authorId === viewingProfileAuthor) &&
         !p.isStory
     );
 
@@ -2659,7 +2852,9 @@ export default function App() {
             <div className="w-6" />
           )}
           <h1 className="text-lg font-bold text-gray-800">
-            {isMyProfile ? t.myProfileTitle : viewingProfileAuthor}
+            {isMyProfile
+              ? t.myProfileTitle
+              : getUserDisplayName(viewingProfileAuthor).split(" ")[0]}
           </h1>
           {!isMyProfile ? (
             <MoreHorizontal
@@ -2702,6 +2897,13 @@ export default function App() {
                   setTempName(userProfile.name);
                   setTempBio(userProfile.bio);
                   setTempColorIndex(userProfile.colorIndex);
+
+                  // 🌟 載入目前的設定值
+                  setTempAge(userProfile.age);
+                  setTempGender(userProfile.gender);
+                  setTempIntent(userProfile.intent);
+                  setTempInterests(userProfile.interests || []);
+
                   setIsEditingProfile(true);
                 }}
                 className="absolute top-6 right-6 text-gray-300 hover:text-purple-600 transition-colors"
@@ -2745,27 +2947,120 @@ export default function App() {
                   onChange={(e) => setTempName(e.target.value)}
                   autoFocus
                 />
+
+                {/* 🌟 新增：歲數與性別編輯區塊 */}
+                <div className="flex gap-3 mb-3 w-full">
+                  <input
+                    type="number"
+                    className="w-full text-sm font-bold text-center text-purple-900 bg-purple-50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400"
+                    value={tempAge}
+                    onChange={(e) => setTempAge(e.target.value)}
+                    placeholder={t.agePlaceholder}
+                  />
+                  <select
+                    className="w-full text-sm font-bold text-center text-purple-900 bg-purple-50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400"
+                    value={tempGender}
+                    onChange={(e) => setTempGender(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      {t.genderPlaceholder}
+                    </option>
+                    <option value="M">{t.genders.M}</option>
+                    <option value="F">{t.genders.F}</option>
+                    <option value="O">{t.genders.O}</option>
+                  </select>
+                </div>
+
+                {/* 🌟 新增：交友意願編輯區塊 */}
+                <select
+                  className="w-full text-sm font-bold text-center text-purple-900 bg-purple-50 rounded-xl px-4 py-2 mb-3 outline-none focus:ring-2 focus:ring-purple-400"
+                  value={tempIntent}
+                  onChange={(e) => setTempIntent(e.target.value)}
+                >
+                  {t.intents.map((intent) => (
+                    <option key={intent.id} value={intent.id}>
+                      {intent.label}
+                    </option>
+                  ))}
+                </select>
+
                 <textarea
                   className="w-full text-sm font-medium text-center text-gray-700 bg-gray-50 rounded-xl px-4 py-3 mb-4 outline-none focus:ring-2 focus:ring-purple-400 resize-none h-20"
                   value={tempBio}
                   onChange={(e) => setTempBio(e.target.value)}
                 />
+
+                {/* 🌟 新增：興趣編輯區塊 */}
+                <div className="flex flex-wrap justify-center gap-2 mb-4 w-full">
+                  {INTERESTS_KEYS.map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setTempInterests((prev) =>
+                          prev.includes(key)
+                            ? prev.filter((i) => i !== key)
+                            : [...prev, key]
+                        );
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                        tempInterests.includes(key)
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {t.interests[key]}
+                    </button>
+                  ))}
+                </div>
+
                 <button
                   onClick={async () => {
+                    const newName = tempName || "User";
+                    const newTag = `${newName} ${
+                      userProfile.native === "繁體中文" ? "🇹🇼" : "🇺🇸"
+                    }`;
+
                     setUserProfile((prev) => ({
                       ...prev,
-                      name: tempName || "User",
+                      name: newName,
                       bio: tempBio,
                       colorIndex: tempColorIndex,
+                      age: tempAge,
+                      gender: tempGender,
+                      intent: tempIntent,
+                      interests: tempInterests,
                     }));
                     setIsEditingProfile(false);
-                    await updateDoc(doc(db, "users", currentUserTag), {
-                      name: tempName || "User",
-                      bio: tempBio,
-                      colorIndex: tempColorIndex,
-                    });
+
+                    await setDoc(
+                      doc(db, "users", currentUserId),
+                      {
+                        name: newName,
+                        bio: tempBio,
+                        colorIndex: tempColorIndex,
+                        age: tempAge,
+                        gender: tempGender,
+                        intent: tempIntent,
+                        interests: tempInterests,
+                      },
+                      { merge: true }
+                    );
+
+                    const myPostsToSync = posts.filter(
+                      (p) =>
+                        p.authorId === currentUserId ||
+                        p.author === currentUserTag
+                    );
+                    for (let p of myPostsToSync) {
+                      try {
+                        await updateDoc(doc(db, "posts", p.id), {
+                          authorId: currentUserId,
+                          author: newTag,
+                        });
+                      } catch (e) {}
+                    }
                   }}
-                  className="bg-purple-600 text-white px-6 py-2 rounded-2xl font-bold text-sm shadow-md shadow-purple-200 active:scale-95 transition-transform mb-4"
+                  className="w-full bg-purple-600 text-white px-6 py-4 rounded-2xl font-bold text-sm shadow-md shadow-purple-200 active:scale-95 transition-transform mb-4"
                 >
                   {t.saveBtn}
                 </button>
@@ -2781,7 +3076,7 @@ export default function App() {
                 <h2 className="text-2xl font-black text-gray-800 mt-2 mb-1">
                   {isMyProfile
                     ? userProfile.name
-                    : viewingProfileAuthor.split(" ")[0]}
+                    : getUserDisplayName(viewingProfileAuthor).split(" ")[0]}
                 </h2>
                 <div className="flex gap-2 my-2 h-6">
                   {isMyProfile || isMutual ? (
@@ -2842,8 +3137,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (isMutual) {
-                      setActiveChatUser(viewingProfileAuthor);
-                      setCurrentView("chatRoom");
+                      openChat(viewingProfileAuthor);
                       setHasUnreadMessages(false);
                     } else {
                       showToast(t.dmLocked, t.noticeTitle);
@@ -2966,10 +3260,9 @@ export default function App() {
                                 ...userProfile,
                                 colorIndex: idx,
                               });
-                              await updateDoc(
-                                doc(db, "users", currentUserTag),
-                                { colorIndex: idx }
-                              );
+                              await updateDoc(doc(db, "users", currentUserId), {
+                                colorIndex: idx,
+                              });
                               showToast(t.purchaseSuccess, t.successTitle);
                             } else if (karmaPoints >= 50) {
                               setKarmaPoints((prev) => prev - 50);
@@ -2982,13 +3275,10 @@ export default function App() {
                                 unlockedColors: newUnlocks,
                                 colorIndex: idx,
                               });
-                              await updateDoc(
-                                doc(db, "users", currentUserTag),
-                                {
-                                  unlockedColors: newUnlocks,
-                                  colorIndex: idx,
-                                }
-                              );
+                              await updateDoc(doc(db, "users", currentUserId), {
+                                unlockedColors: newUnlocks,
+                                colorIndex: idx,
+                              });
                               showToast(t.purchaseSuccess, t.successTitle);
                             } else {
                               showToast(t.notEnoughKarma, t.oopsTitle);
@@ -3046,10 +3336,9 @@ export default function App() {
                                 ...userProfile,
                                 equippedAccessory: newAcc,
                               });
-                              await updateDoc(
-                                doc(db, "users", currentUserTag),
-                                { equippedAccessory: newAcc }
-                              );
+                              await updateDoc(doc(db, "users", currentUserId), {
+                                equippedAccessory: newAcc,
+                              });
                             } else if (karmaPoints >= acc.price) {
                               setKarmaPoints((prev) => prev - acc.price);
                               const newUnlocks = [
@@ -3061,13 +3350,10 @@ export default function App() {
                                 unlockedAccessories: newUnlocks,
                                 equippedAccessory: acc.id,
                               });
-                              await updateDoc(
-                                doc(db, "users", currentUserTag),
-                                {
-                                  unlockedAccessories: newUnlocks,
-                                  equippedAccessory: acc.id,
-                                }
-                              );
+                              await updateDoc(doc(db, "users", currentUserId), {
+                                unlockedAccessories: newUnlocks,
+                                equippedAccessory: acc.id,
+                              });
                               showToast(t.purchaseSuccess, t.successTitle);
                             } else {
                               showToast(t.notEnoughKarma, t.oopsTitle);
@@ -3099,51 +3385,77 @@ export default function App() {
     );
   };
 
-  const renderChatList = () => (
-    <div className="flex flex-col h-full bg-white relative pb-20">
-      <header className="px-6 py-5 flex items-center border-b border-gray-50 sticky top-0 bg-white z-10">
-        <ArrowLeft
-          onClick={() => setCurrentView("feed")}
-          className="w-6 h-6 mr-4 cursor-pointer text-gray-600"
-        />
-        <span className="font-bold text-lg text-gray-800">{t.chatTitle}</span>
-      </header>
-      <div className="flex-1 p-4 space-y-2">
-        {mutualFriends.length === 0 ? (
-          <div className="flex flex-col items-center justify-center pt-20 text-center px-4">
-            <Lock className="w-12 h-12 text-gray-200 mb-4" />
-            <p className="text-gray-500 font-bold mb-2">{t.chatEmpty}</p>
-            <p className="text-sm text-gray-400 whitespace-pre-line">
-              {t.chatEmptyDesc}
-            </p>
-          </div>
-        ) : (
-          mutualFriends.map((name, i) => (
-            <div
-              key={i}
-              onClick={() => {
-                setActiveChatUser(name);
-                setCurrentView("chatRoom");
-              }}
-              className="flex items-center p-4 bg-gray-50 rounded-3xl cursor-pointer hover:bg-gray-100 transition-colors"
-            >
-              <UserAvatar name={name} className="w-12 h-12" />
-              <div className="ml-4 flex-1">
-                <h3 className="font-bold text-gray-800">{name}</h3>
-                <p className="text-sm text-gray-500 truncate">
-                  {t.chatUnlocked}
-                </p>
-              </div>
+  const renderChatList = () => {
+    const sortedFriends = [...mutualFriends].sort((a, b) => {
+      const timeA = latestMessages[a]?.timestamp || 0;
+      const timeB = latestMessages[b]?.timestamp || 0;
+      return timeB - timeA;
+    });
+
+    return (
+      <div className="flex flex-col h-full bg-white relative pb-20">
+        <header className="px-6 py-5 flex items-center border-b border-gray-50 sticky top-0 bg-white z-10">
+          <ArrowLeft
+            onClick={() => setCurrentView("feed")}
+            className="w-6 h-6 mr-4 cursor-pointer text-gray-600"
+          />
+          <span className="font-bold text-lg text-gray-800">{t.chatTitle}</span>
+        </header>
+        <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {sortedFriends.length === 0 ? (
+            <div className="flex flex-col items-center justify-center pt-20 text-center px-4">
+              <Lock className="w-12 h-12 text-gray-200 mb-4" />
+              <p className="text-gray-500 font-bold mb-2">{t.chatEmpty}</p>
+              <p className="text-sm text-gray-400 whitespace-pre-line">
+                {t.chatEmptyDesc}
+              </p>
             </div>
-          ))
-        )}
+          ) : (
+            sortedFriends.map((uid, i) => {
+              const latestMsg = latestMessages[uid];
+              let previewText = t.chatUnlocked;
+              if (latestMsg) {
+                const isMe = latestMsg.sender === currentUserId;
+                const prefix = isMe ? t.you : "";
+                if (latestMsg.image) previewText = prefix + t.sentImage;
+                else previewText = prefix + latestMsg.text;
+              }
+              const isUnread = userProfile.unreadChats?.includes(uid);
+
+              return (
+                <div
+                  key={i}
+                  onClick={() => openChat(uid)}
+                  className="flex items-center p-4 bg-gray-50 rounded-3xl cursor-pointer hover:bg-gray-100 transition-colors relative"
+                >
+                  <UserAvatar uid={uid} className="w-12 h-12 shrink-0" />
+                  <div className="ml-4 flex-1 overflow-hidden">
+                    <h3 className="font-bold text-gray-800">
+                      {getUserDisplayName(uid)}
+                    </h3>
+                    <p
+                      className={`text-sm truncate ${
+                        isUnread ? "text-gray-800 font-bold" : "text-gray-500"
+                      }`}
+                    >
+                      {previewText}
+                    </p>
+                  </div>
+                  {isUnread && (
+                    <span className="w-3 h-3 bg-pink-500 rounded-full shrink-0 ml-2"></span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderChatRoom = () => (
     <div className="flex flex-col h-full bg-gray-50 relative">
-      <header className="px-6 py-4 flex items-center justify-between border-b border-gray-100 bg-white sticky top-0 z-10">
+      <header className="px-6 py-4 flex items-center justify-between border-b border-gray-100 bg-white shrink-0 z-10">
         <div className="flex items-center">
           <ArrowLeft
             onClick={() => setCurrentView("chatList")}
@@ -3156,9 +3468,9 @@ export default function App() {
               setCurrentView("profile");
             }}
           >
-            <UserAvatar name={activeChatUser} className="w-10 h-10" />
+            <UserAvatar uid={activeChatUser} className="w-10 h-10" />
             <span className="font-bold text-lg text-gray-800 ml-3">
-              {activeChatUser}
+              {getUserDisplayName(activeChatUser)}
             </span>
           </div>
         </div>
@@ -3168,15 +3480,15 @@ export default function App() {
       </header>
 
       <div
-        ref={chatContainerRef} // 🌟 唯一新增：綁定容器
-        className="flex-1 p-4 pb-24 overflow-y-auto"
+        ref={chatContainerRef}
+        className="flex-1 p-4 overflow-y-auto"
         onClick={() => setActiveReactionMsg(null)}
       >
         <div className="text-center text-xs text-gray-400 font-bold my-4">
           {t.chatUnlockedHint}
         </div>
         {chatMessages[activeChatUser]?.map((msg) => {
-          const isMe = msg.sender === currentUserTag;
+          const isMe = msg.sender === currentUserId;
           const targetColorIdx = allUsersDict[activeChatUser]?.colorIndex || 0;
           const pIdx = isMe ? userProfile.colorIndex : targetColorIdx;
           const bubbleColor = PALETTES[pIdx].base;
@@ -3246,10 +3558,10 @@ export default function App() {
             </div>
           );
         })}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-4 shrink-0" />
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 flex items-center gap-3 z-10 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)]">
+      <div className="bg-white border-t border-gray-100 flex items-center gap-3 p-4 shrink-0 z-10 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)]">
         <input
           type="file"
           ref={chatFileInputRef}
@@ -3308,57 +3620,102 @@ export default function App() {
               </span>
             </header>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {followers.length === 0 ? (
+              {followers.filter((f) => !following.includes(f)).length === 0 &&
+              myNotifications.length === 0 ? (
                 <div className="text-center text-gray-400 mt-10">
                   {t.noNotifications}
                 </div>
               ) : (
-                followers.map((f) => {
-                  const isPending = !following.includes(f);
-                  return (
-                    <div
-                      key={f}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl"
-                    >
+                <>
+                  {followers.map((fUid) => {
+                    const isPending = !following.includes(fUid);
+                    if (!isPending) return null;
+                    return (
                       <div
-                        className="flex items-center gap-3 cursor-pointer"
-                        onClick={() => {
-                          setShowNotifications(false);
-                          setViewingProfileAuthor(f);
-                          setCurrentView("profile");
-                        }}
+                        key={fUid}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl"
                       >
-                        <UserAvatar name={f} className="w-10 h-10" />
-                        <div>
-                          <p className="font-bold text-sm text-gray-800">{f}</p>
-                          <p className="text-xs text-gray-500">
-                            {t.followedYou}
-                          </p>
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => {
+                            setShowNotifications(false);
+                            setViewingProfileAuthor(fUid);
+                            setCurrentView("profile");
+                          }}
+                        >
+                          <UserAvatar uid={fUid} className="w-10 h-10" />
+                          <div>
+                            <p className="font-bold text-sm text-gray-800">
+                              {getUserDisplayName(fUid)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {t.followedYou}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      {isPending ? (
                         <button
                           onClick={async () => {
-                            await updateDoc(doc(db, "users", currentUserTag), {
-                              following: arrayUnion(f),
-                            });
-                            await updateDoc(doc(db, "users", f), {
-                              followers: arrayUnion(currentUserTag),
-                            });
-                            showToast(t.followMutualSuccess, t.successTitle);
+                            try {
+                              await setDoc(
+                                doc(db, "users", currentUserId),
+                                {
+                                  following: arrayUnion(fUid),
+                                },
+                                { merge: true }
+                              );
+                              await setDoc(
+                                doc(db, "users", fUid),
+                                {
+                                  followers: arrayUnion(currentUserId),
+                                },
+                                { merge: true }
+                              );
+                              showToast(t.followMutualSuccess, t.successTitle);
+                            } catch (e) {}
                           }}
                           className="px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-transform"
                         >
                           {t.followBack}
                         </button>
-                      ) : (
-                        <span className="text-xs font-bold text-gray-400 bg-gray-200 px-3 py-1.5 rounded-lg">
-                          {t.followingBtn}
+                      </div>
+                    );
+                  })}
+
+                  {myNotifications
+                    .slice()
+                    .reverse()
+                    .map((notif) => (
+                      <div
+                        key={notif.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          setSelectedPostId(notif.postId);
+                          setCurrentView("postDetail");
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <UserAvatar
+                            uid={notif.from}
+                            className="w-10 h-10 shrink-0"
+                          />
+                          <div>
+                            <p className="font-bold text-sm text-gray-800">
+                              {getUserDisplayName(notif.from)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {notif.type === "correction"
+                                ? t.correctedYourPost
+                                : t.commentedYourPost}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-400 shrink-0 ml-2">
+                          {getRelativeTime(notif.timestamp, systemLang)}
                         </span>
-                      )}
-                    </div>
-                  );
-                })
+                      </div>
+                    ))}
+                </>
               )}
             </div>
           </div>
