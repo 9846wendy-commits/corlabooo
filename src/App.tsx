@@ -332,8 +332,8 @@ const locales = {
     chatUnlocked: "Chat unlocked!",
     feedEmpty: "It's empty here. Go find some new friends!",
     suggestTypeLabel: "Select suggestion types (multiple allowed):",
-    suggestPlaceholder: (lang: string)=> `Enter your suggestion in ${lang}...`,
-    commentPlaceholder: (lang: string)=> `Say something in ${lang}...`,
+    suggestPlaceholder: (lang: string) => `Enter your suggestion in ${lang}...`,
+    commentPlaceholder: (lang: string) => `Say something in ${lang}...`,
     aiValidating: "AI Validating...",
     submitSuggestBtn: "Submit Suggestion (+10🧼)",
     submitSuggestBtnNoPoints: "Submit Suggestion",
@@ -343,7 +343,7 @@ const locales = {
     gotItBtn: "Got it",
     sendBtn: "Send",
     justNow: "Just now",
-    langLockedHint: (lang: string)=> `⚠️ Language Locked: Please use ${lang} only.`,
+    langLockedHint: (lang: string) => `⚠️ Language Locked: Please use ${lang} only.`,
     mockBio: "This user is very mysterious...",
     mutualUnlockHint: "Age & Gender locked",
     noticeTitle: "Notice",
@@ -439,7 +439,7 @@ const MascotSVG = ({
   baseColor = "#D4AEE3",
   strokeColor = "#C49CD3",
   accessoryEmoji = null,
-}) => (
+}: any) => (
   <svg
     viewBox="0 0 200 200"
     className={className}
@@ -484,7 +484,7 @@ const MascotSVG = ({
   </svg>
 );
 
-const getRelativeTime = (timestamp, lang) => {
+const getRelativeTime = (timestamp: any, lang: any) => {
   if (!timestamp) return lang === "繁體中文" ? "剛剛" : "Just now";
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
@@ -501,17 +501,17 @@ const getRelativeTime = (timestamp, lang) => {
 
 export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const currentUserId = currentUser?.uid || "guest";
 
   const [currentView, setCurrentView] = useState("onboarding");
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [systemLang, setSystemLang] = useState("繁體中文");
-  const t = locales[systemLang];
+  const t = locales[systemLang as keyof typeof locales];
 
   const [karmaPoints, setKarmaPoints] = useState(120);
-  const [userProfile, setUserProfile] = useState({
+  const [userProfile, setUserProfile] = useState<any>({
     name: "",
     bio: "",
     age: "",
@@ -529,16 +529,16 @@ export default function App() {
     unreadChats: [],
   });
 
-  const [allUsersDict, setAllUsersDict] = useState({});
+  const [allUsersDict, setAllUsersDict] = useState<any>({});
 
-  const [following, setFollowing] = useState([]);
-  const [followers, setFollowers] = useState([]);
-  const [mutualFriends, setMutualFriends] = useState([]);
+  const [following, setFollowing] = useState<any[]>([]);
+  const [followers, setFollowers] = useState<any[]>([]);
+  const [mutualFriends, setMutualFriends] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [myNotifications, setMyNotifications] = useState([]);
+  const [myNotifications, setMyNotifications] = useState<any[]>([]);
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
 
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState<any[]>([]);
   const postsCollectionRef = collection(db, "posts");
 
   const currentUserTag = `${userProfile.name || "User"} ${
@@ -553,37 +553,37 @@ export default function App() {
     viewingProfileAuthor === currentUserTag;
 
   const [feedTab, setFeedTab] = useState("foryou");
-  const [selectedPostId, setSelectedPostId] = useState(null);
+  const [selectedPostId, setSelectedPostId] = useState<any>(null);
 
   const [newPostText, setNewPostText] = useState("");
   const [postIntent, setPostIntent] = useState("practice");
   const [postType, setPostType] = useState("post");
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImage, setSelectedImage] = useState<any>(null);
 
-  const fileInputRef = useRef(null);
-  const chatFileInputRef = useRef(null);
-  const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
+  const fileInputRef = useRef<any>(null);
+  const chatFileInputRef = useRef<any>(null);
+  const messagesEndRef = useRef<any>(null);
+  const chatContainerRef = useRef<any>(null);
 
   const [draftText, setDraftText] = useState("");
   const [correctionText, setCorrectionText] = useState("");
-  const [correctionTags, setCorrectionTags] = useState([]);
+  const [correctionTags, setCorrectionTags] = useState<any[]>([]);
 
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [showActionMenu, setShowActionMenu] = useState(null);
-  const [showCommentActionMenu, setShowCommentActionMenu] = useState(null);
-  const [toastData, setToastData] = useState(null);
+  const [showActionMenu, setShowActionMenu] = useState<any>(null);
+  const [showCommentActionMenu, setShowCommentActionMenu] = useState<any>(null);
+  const [toastData, setToastData] = useState<any>(null);
   const [showShopModal, setShowShopModal] = useState(false);
-  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [fullscreenImage, setFullscreenImage] = useState<any>(null);
 
-  const [activeChatUser, setActiveChatUser] = useState(null);
+  const [activeChatUser, setActiveChatUser] = useState<any>(null);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState({});
+  const [chatMessages, setChatMessages] = useState<any>({});
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
-  const [activeReactionMsg, setActiveReactionMsg] = useState(null);
-  const [latestMessages, setLatestMessages] = useState({});
-  const pressTimer = useRef(null);
+  const [activeReactionMsg, setActiveReactionMsg] = useState<any>(null);
+  const [latestMessages, setLatestMessages] = useState<any>({});
+  const pressTimer = useRef<any>(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState("");
@@ -596,18 +596,18 @@ export default function App() {
   const [tempAge, setTempAge] = useState("");
   const [tempGender, setTempGender] = useState("");
   const [tempIntent, setTempIntent] = useState("");
-  const [tempInterests, setTempInterests] = useState([]);
+  const [tempInterests, setTempInterests] = useState<any[]>([]);
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
 
   const selectedPost = posts.find((p) => p.id === selectedPostId);
 
-  const showToast = (text, title = t.noticeTitle, highlight = "") => {
+  const showToast = (text: any, title = t.noticeTitle, highlight = "") => {
     setToastData({ text, title, highlight });
   };
 
-  const getUserDisplayName = (uidOrTag) => {
+  const getUserDisplayName = (uidOrTag: any) => {
     if (
       uidOrTag === currentUserId ||
       uidOrTag === "me" ||
@@ -627,7 +627,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: any) => {
       if (user) {
         setCurrentUser(user);
         try {
@@ -660,7 +660,7 @@ export default function App() {
             );
             setCurrentView("feed");
           } else {
-            setUserProfile((prev) => ({
+            setUserProfile((prev: any) => ({
               ...prev,
               name: user.displayName || "",
             }));
@@ -681,7 +681,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snap) => {
-      const dict = {};
+      const dict: any = {};
       snap.forEach((doc) => {
         const data = doc.data();
         dict[data.uid || doc.id] = data;
@@ -714,12 +714,12 @@ export default function App() {
         const f_ers = data.followers || [];
         setFollowing(f_ing);
         setFollowers(f_ers);
-        const mutuals = f_ing.filter((f) => f_ers.includes(f));
+        const mutuals = f_ing.filter((f: any) => f_ers.includes(f));
         setMutualFriends(mutuals);
         setMyNotifications(data.notifications || []);
         setHasUnreadNotifs(data.hasUnreadNotifs || false);
         setHasUnreadMessages(data.hasUnreadMessages || false);
-        setUserProfile((prev) => ({
+        setUserProfile((prev: any) => ({
           ...prev,
           unreadChats: data.unreadChats || [],
         }));
@@ -740,11 +740,11 @@ export default function App() {
       return onSnapshot(q, (snap) => {
         if (!snap.empty) {
           const msg = snap.docs[0].data();
-          setLatestMessages((prev) => ({ ...prev, [friendUid]: msg }));
+          setLatestMessages((prev: any) => ({ ...prev, [friendUid]: msg }));
         }
       });
     });
-    return () => unsubs.forEach((u) => u());
+    return () => unsubs.forEach((u: any) => u());
   }, [mutualFriends, currentUserId]);
 
   useEffect(() => {
@@ -765,7 +765,7 @@ export default function App() {
           hasLiked:
             postLikedBy.includes(currentUserId) ||
             postLikedBy.includes(currentUserTag),
-          comments: (data.comments || []).map((c) => {
+          comments: (data.comments || []).map((c: any) => {
             const cLikedBy = c.likedBy || [];
             const cDislikedBy = c.dislikedBy || [];
             const cAuthorId = c.authorId || c.author || "unknown";
@@ -827,7 +827,7 @@ export default function App() {
 
     const unsub = onSnapshot(q, (snap) => {
       const msgs = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setChatMessages((prev) => ({ ...prev, [activeChatUser]: msgs }));
+      setChatMessages((prev: any) => ({ ...prev, [activeChatUser]: msgs }));
     });
 
     return () => unsub();
@@ -839,7 +839,7 @@ export default function App() {
     }
   }, [chatMessages, activeChatUser, currentView]);
 
-  const callGemini = async (prompt) => {
+  const callGemini = async (prompt: any) => {
     setIsAiLoading(true);
     const apiKey = "";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -864,7 +864,7 @@ export default function App() {
     }
   };
 
-  const UserAvatar = ({ uid, className }) => {
+  const UserAvatar = ({ uid, className }: any) => {
     let palette = PALETTES[0];
     let accEmoji = null;
     const isMe =
@@ -897,7 +897,7 @@ export default function App() {
     );
   };
 
-  const hasActiveStory = (authorUid) => {
+  const hasActiveStory = (authorUid: any) => {
     const now = Date.now();
     return posts.some(
       (p) =>
@@ -907,7 +907,7 @@ export default function App() {
     );
   };
 
-  const StoryAvatar = ({ uid, sizeClass = "w-10 h-10", onClick }) => {
+  const StoryAvatar = ({ uid, sizeClass = "w-10 h-10", onClick }: any) => {
     const active = hasActiveStory(uid);
     return (
       <div
@@ -967,7 +967,7 @@ export default function App() {
     }
   };
 
-  const validateLanguage = (text, targetLang) => {
+  const validateLanguage = (text: any, targetLang: any) => {
     if (!text.trim()) return true;
     if (targetLang === "English" && /[\u4e00-\u9fa5]/.test(text)) {
       showToast(t.langLockedHint("English"), t.oopsTitle);
@@ -1043,7 +1043,7 @@ export default function App() {
     }
   };
 
-  const handleReportPost = async (postId) => {
+  const handleReportPost = async (postId: any) => {
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
     const post = posts.find((p) => p.id === postId);
@@ -1068,9 +1068,9 @@ export default function App() {
     }
   };
 
-  const handleBlockUser = async (targetAuthorUid) => {
+  const handleBlockUser = async (targetAuthorUid: any) => {
     if (targetAuthorUid === currentUserId) return;
-    setUserProfile((prev) => ({
+    setUserProfile((prev: any) => ({
       ...prev,
       blockedUsers: [...(prev.blockedUsers || []), targetAuthorUid],
     }));
@@ -1096,7 +1096,7 @@ export default function App() {
     }
   };
 
-  const handleReportUser = async (targetAuthorUid) => {
+  const handleReportUser = async (targetAuthorUid: any) => {
     if (targetAuthorUid === currentUserId) return;
     try {
       await addDoc(collection(db, "user_reports"), {
@@ -1152,11 +1152,11 @@ export default function App() {
     }
   };
 
-  const handleReportComment = async (postId, commentId) => {
+  const handleReportComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
-    const updatedComments = post.comments.filter((c) => c.id !== commentId);
+    const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
       await updateDoc(doc(db, "posts", postId), { comments: updatedComments });
       showToast(t.commentReportSuccess, t.successTitle);
@@ -1164,7 +1164,7 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handleDeletePost = async (postId) => {
+  const handleDeletePost = async (postId: any) => {
     if (typeof postId === "number") return;
     try {
       await deleteDoc(doc(db, "posts", postId));
@@ -1177,11 +1177,11 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handleDeleteComment = async (postId, commentId) => {
+  const handleDeleteComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
-    const updatedComments = post.comments.filter((c) => c.id !== commentId);
+    const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
       await updateDoc(doc(db, "posts", postId), { comments: updatedComments });
       showToast(t.deletePostSuccess, t.successTitle);
@@ -1189,12 +1189,12 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handleCommentReaction = async (postId, commentId, type) => {
+  const handleCommentReaction = async (postId: any, commentId: any, type: any) => {
     if (typeof postId === "number") return;
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
     let deductedKarma = 0;
-    const updatedComments = post.comments.map((c) => {
+    const updatedComments = post.comments.map((c: any) => {
       if (c.id === commentId) {
         let likedBy = [...(c.likedBy || [])];
         let dislikedBy = [...(c.dislikedBy || [])];
@@ -1242,7 +1242,7 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handleBoost = async (postId) => {
+  const handleBoost = async (postId: any) => {
     if (typeof postId === "number") return;
     if (karmaPoints >= 50) {
       try {
@@ -1258,7 +1258,7 @@ export default function App() {
     }
   };
 
-  const isSpamText = (text) => {
+  const isSpamText = (text: any) => {
     if (text.length < 3 || text.length > 200) return true;
     if (/(.)\1{4,}/.test(text)) return true;
     if (/(.{2,})\1{2,}/.test(text)) return true;
@@ -1351,7 +1351,7 @@ export default function App() {
       hiddenByCommunity: false,
     };
     const hasCorrectedBefore = selectedPost.comments.some(
-      (c) => c.authorId === currentUserId && c.isCorrection
+      (c: any) => c.authorId === currentUserId && c.isCorrection
     );
 
     try {
@@ -1382,7 +1382,7 @@ export default function App() {
           setKarmaPoints((prev) => prev + 10);
 
           const newHelpedCount = (userProfile.helped || 0) + 1;
-          setUserProfile((prev) => ({ ...prev, helped: newHelpedCount }));
+          setUserProfile((prev: any) => ({ ...prev, helped: newHelpedCount }));
           await updateDoc(doc(db, "users", currentUserId), {
             helped: newHelpedCount,
           });
@@ -1398,7 +1398,7 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handleBuyColor = (idx) => {
+  const handleBuyColor = (idx: any) => {
     if (userProfile.unlockedColors.includes(idx)) {
       setUserProfile({ ...userProfile, colorIndex: idx });
       showToast(t.purchaseSuccess, t.successTitle);
@@ -1415,7 +1415,7 @@ export default function App() {
     }
   };
 
-  const handleBuyAccessory = (acc) => {
+  const handleBuyAccessory = (acc: any) => {
     if (userProfile.unlockedAccessories.includes(acc.id)) {
       setUserProfile({
         ...userProfile,
@@ -1465,7 +1465,7 @@ export default function App() {
     }
   };
 
-  const handleLike = async (e, postId) => {
+  const handleLike = async (e: any, postId: any) => {
     e.stopPropagation();
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
@@ -1481,7 +1481,7 @@ export default function App() {
     } catch (error) {}
   };
 
-  const openChat = (uid) => {
+  const openChat = (uid: any) => {
     setActiveChatUser(uid);
     setCurrentView("chatRoom");
     if (userProfile.unreadChats?.includes(uid)) {
@@ -1528,7 +1528,7 @@ export default function App() {
     }
   };
 
-  const handleSendChatImage = (e) => {
+  const handleSendChatImage = (e: any) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -1573,7 +1573,7 @@ export default function App() {
     } catch (error) {}
   };
 
-  const handlePressStart = (msgId) => {
+  const handlePressStart = (msgId: any) => {
     pressTimer.current = setTimeout(() => {
       setActiveReactionMsg(msgId);
     }, 500);
@@ -1582,7 +1582,7 @@ export default function App() {
     if (pressTimer.current) clearTimeout(pressTimer.current);
   };
 
-  const handleReactToMsg = async (msgId, emoji) => {
+  const handleReactToMsg = async (msgId: any, emoji: any) => {
     const chatId = [currentUserId, activeChatUser].sort().join("_");
     try {
       await updateDoc(doc(db, "chats", chatId, "messages", msgId), {
@@ -1845,7 +1845,7 @@ export default function App() {
                       setUserProfile({
                         ...userProfile,
                         interests: list.includes(key)
-                          ? list.filter((i) => i !== key)
+                          ? list.filter((i: any) => i !== key)
                           : [...list, key],
                       });
                     }}
@@ -1855,7 +1855,7 @@ export default function App() {
                         : "bg-white text-gray-500 border-gray-200"
                     }`}
                   >
-                    {t.interests[key]}
+                    {t.interests[key as keyof typeof t.interests]}
                   </button>
                 ))}
               </div>
@@ -2011,7 +2011,7 @@ export default function App() {
     );
   };
 
-  const renderPostCard = (post) => {
+  const renderPostCard = (post: any) => {
     const isPractice = post.postIntent === "practice";
     return (
       <div
@@ -2238,11 +2238,11 @@ export default function App() {
               ref={fileInputRef}
               accept="image/*"
               className="hidden"
-              onChange={(e) => {
+              onChange={(e: any) => {
                 const file = e.target.files[0];
                 if (file) {
                   const reader = new FileReader();
-                  reader.onload = (event) => {
+                  reader.onload = (event: any) => {
                     const img = new Image();
                     img.onload = () => {
                       const canvas = document.createElement("canvas");
@@ -2262,7 +2262,7 @@ export default function App() {
                       }
                       canvas.width = width;
                       canvas.height = height;
-                      const ctx = canvas.getContext("2d");
+                      const ctx: any = canvas.getContext("2d");
                       ctx.drawImage(img, 0, 0, width, height);
                       const compressedBase64 = canvas.toDataURL(
                         "image/jpeg",
@@ -2308,7 +2308,7 @@ export default function App() {
 
   const renderPostDetail = () => {
     if (!selectedPost) return null;
-    let activeStories = [];
+    let activeStories: any[] = [];
     let currentStoryIndex = -1;
     if (selectedPost.isStory) {
       activeStories = posts
@@ -2325,7 +2325,7 @@ export default function App() {
     }
 
     const correctionComments = selectedPost.comments.filter(
-      (c) => c.isCorrection && !c.hiddenByCommunity
+      (c: any) => c.isCorrection && !c.hiddenByCommunity
     );
     const canUseAiSummary =
       selectedPost.isMine && correctionComments.length > 0;
@@ -2458,7 +2458,7 @@ export default function App() {
                       return;
                     }
                     const allCorrections = correctionComments
-                      .map((c) => c.text)
+                      .map((c: any) => c.text)
                       .join(" / ");
                     const prompt = `這是一篇用 ${selectedPost.lang} 寫的貼文：「${selectedPost.content}」。以下是不同網友給的修改建議：${allCorrections}。請你扮演專業的雙語老師，用 ${userProfile.native} 幫我統整出一個「最自然、最正確的最終建議版本」，並簡短解釋為什麼這樣說最好。`;
                     const result = await callGemini(prompt);
@@ -2999,7 +2999,7 @@ export default function App() {
                       onClick={() => {
                         setTempInterests((prev) =>
                           prev.includes(key)
-                            ? prev.filter((i) => i !== key)
+                            ? prev.filter((i: any) => i !== key)
                             : [...prev, key]
                         );
                       }}
@@ -3009,7 +3009,7 @@ export default function App() {
                           : "bg-gray-100 text-gray-500"
                       }`}
                     >
-                      {t.interests[key]}
+                      {t.interests[key as keyof typeof t.interests]}
                     </button>
                   ))}
                 </div>
@@ -3021,7 +3021,7 @@ export default function App() {
                       userProfile.native === "繁體中文" ? "🇹🇼" : "🇺🇸"
                     }`;
 
-                    setUserProfile((prev) => ({
+                    setUserProfile((prev: any) => ({
                       ...prev,
                       name: newName,
                       bio: tempBio,
@@ -3083,7 +3083,7 @@ export default function App() {
                   {isMyProfile || isMutual ? (
                     <>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
-                        {t.genders[pGender] || pGender}
+                        {t.genders[pGender as keyof typeof t.genders] || pGender}
                       </span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
                         {pAge} {t.ageUnit}
@@ -3106,12 +3106,12 @@ export default function App() {
                     <Zap className="w-3 h-3 text-amber-400 fill-current" />{" "}
                     {t.helped} {pHelped} {t.people}
                   </span>
-                  {pInterests.map((key) => (
+                  {pInterests.map((key: any) => (
                     <span
                       key={key}
                       className="bg-gray-50 text-gray-500 border border-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg"
                     >
-                      {t.interests[key] || key}
+                      {t.interests[key as keyof typeof t.interests] || key}
                     </span>
                   ))}
                 </div>
@@ -3326,7 +3326,7 @@ export default function App() {
                             {acc.emoji}
                           </div>
                           <span className="font-bold text-gray-800">
-                            {acc.name[systemLang]}
+                            {acc.name[systemLang as keyof typeof acc.name]}
                           </span>
                         </div>
                         <button
@@ -3488,7 +3488,7 @@ export default function App() {
         <div className="text-center text-xs text-gray-400 font-bold my-4">
           {t.chatUnlockedHint}
         </div>
-        {chatMessages[activeChatUser]?.map((msg) => {
+        {chatMessages[activeChatUser]?.map((msg: any) => {
           const isMe = msg.sender === currentUserId;
           const targetColorIdx = allUsersDict[activeChatUser]?.colorIndex || 0;
           const pIdx = isMe ? userProfile.colorIndex : targetColorIdx;
@@ -3588,7 +3588,7 @@ export default function App() {
             placeholder="Aa"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) =>
+            onKeyDown={(e: any) =>
               !e.nativeEvent.isComposing &&
               e.key === "Enter" &&
               handleSendChatMessage()
