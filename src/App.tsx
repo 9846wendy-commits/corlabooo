@@ -332,8 +332,8 @@ const locales = {
     chatUnlocked: "Chat unlocked!",
     feedEmpty: "It's empty here. Go find some new friends!",
     suggestTypeLabel: "Select suggestion types (multiple allowed):",
-    suggestPlaceholder: (lang) => `Enter your suggestion in ${lang}...`,
-    commentPlaceholder: (lang) => `Say something in ${lang}...`,
+    suggestPlaceholder: (lang: string)=> `Enter your suggestion in ${lang}...`,
+    commentPlaceholder: (lang: string)=> `Say something in ${lang}...`,
     aiValidating: "AI Validating...",
     submitSuggestBtn: "Submit Suggestion (+10🧼)",
     submitSuggestBtnNoPoints: "Submit Suggestion",
@@ -343,7 +343,7 @@ const locales = {
     gotItBtn: "Got it",
     sendBtn: "Send",
     justNow: "Just now",
-    langLockedHint: (lang) => `⚠️ Language Locked: Please use ${lang} only.`,
+    langLockedHint: (lang: string)=> `⚠️ Language Locked: Please use ${lang} only.`,
     mockBio: "This user is very mysterious...",
     mutualUnlockHint: "Age & Gender locked",
     noticeTitle: "Notice",
@@ -1903,7 +1903,7 @@ export default function App() {
           if (a.boosted && !b.boosted) return -1;
           if (!a.boosted && b.boosted) return 1;
 
-          const getLangScore = (lang) => {
+          const getLangScore = (lang: string)=> {
             if (lang === userProfile.learning) return 2;
             if (lang === userProfile.native) return 0;
             return 1;
