@@ -179,7 +179,7 @@ const locales = {
     gotItBtn: "我知道了",
     sendBtn: "送出",
     justNow: "剛剛",
-    langLockedHint: (lang) => `⚠️ 語言鎖定：此篇貼文限制僅能輸入 ${lang}。`,
+    langLockedHint: (lang: string) => `⚠️ 語言鎖定：此篇貼文限制僅能輸入 ${lang}。`,
     mockBio: "這個人很神秘，什麼都沒寫...",
     mutualUnlockHint: "互相追蹤後解鎖年齡性別",
     noticeTitle: "系統提示",
