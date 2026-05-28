@@ -601,7 +601,7 @@ export default function App() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
 
-  const selectedPost = posts.find((p: any) => p.id === selectedPostId);
+  const selectedPost = posts.find((p) => p.id === selectedPostId);
 
   const showToast = (text: any, title = t.noticeTitle, highlight = "") => {
     setToastData({ text, title, highlight });
@@ -900,7 +900,7 @@ export default function App() {
   const hasActiveStory = (authorUid: any) => {
     const now = Date.now();
     return posts.some(
-      (p: any) =>
+      (p) =>
         p.authorId === authorUid &&
         p.isStory &&
         now - p.timestamp < 24 * 60 * 60 * 1000
@@ -916,7 +916,7 @@ export default function App() {
             e.stopPropagation();
             const userStories = posts
               .filter(
-                (p: any) =>
+                (p) =>
                   p.authorId === uid &&
                   p.isStory &&
                   Date.now() - p.timestamp < 24 * 60 * 60 * 1000
@@ -1046,7 +1046,7 @@ export default function App() {
   const handleReportPost = async (postId: any) => {
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
-    const post = posts.find((p: any) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
     const newReportedBy = [...(post.reportedBy || []), currentUserId];
 
@@ -1116,7 +1116,7 @@ export default function App() {
     if (!window.confirm(t.deleteConfirm)) return;
     try {
       const myPosts = posts.filter(
-        (p: any) => p.authorId === currentUserId || p.author === currentUserTag
+        (p) => p.authorId === currentUserId || p.author === currentUserTag
       );
       for (let p of myPosts) {
         if (typeof p.id !== "number") {
@@ -1154,7 +1154,7 @@ export default function App() {
 
   const handleReportComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p: any) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
     const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
@@ -1179,7 +1179,7 @@ export default function App() {
 
   const handleDeleteComment = async (postId: any, commentId: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p: any) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
     const updatedComments = post.comments.filter((c: any) => c.id !== commentId);
     try {
@@ -1191,7 +1191,7 @@ export default function App() {
 
   const handleCommentReaction = async (postId: any, commentId: any, type: any) => {
     if (typeof postId === "number") return;
-    const post = posts.find((p: any) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
     let deductedKarma = 0;
     const updatedComments = post.comments.map((c: any) => {
@@ -1469,7 +1469,7 @@ export default function App() {
     e.stopPropagation();
     if (typeof postId === "number") return;
     const postRef = doc(db, "posts", postId);
-    const post = posts.find((p: any) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
     const isCurrentlyLiked = post.hasLiked;
     try {
@@ -1532,26 +1532,53 @@ export default function App() {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const chatId = [currentUserId, activeChatUser].sort().join("_");
-        const newMsg = {
-          sender: currentUserId,
-          text: "",
-          image: reader.result,
-          timestamp: Date.now(),
-          time: t.justNow,
+      reader.onload = (event: any) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const MAX_SIZE = 800;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx: any = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+
+          const chatId = [currentUserId, activeChatUser].sort().join("_");
+          const newMsg = {
+            sender: currentUserId,
+            text: "",
+            image: compressedBase64,
+            timestamp: Date.now(),
+            time: t.justNow,
+          };
+          try {
+            addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+            setDoc(
+              doc(db, "users", activeChatUser),
+              {
+                hasUnreadMessages: true,
+                unreadChats: arrayUnion(currentUserId),
+              },
+              { merge: true }
+            );
+          } catch (err) {
+            console.error(err);
+          }
         };
-        try {
-          addDoc(collection(db, "chats", chatId, "messages"), newMsg);
-          setDoc(
-            doc(db, "users", activeChatUser),
-            {
-              hasUnreadMessages: true,
-              unreadChats: arrayUnion(currentUserId),
-            },
-            { merge: true }
-          );
-        } catch (err) {}
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
@@ -1898,7 +1925,7 @@ export default function App() {
     let displayPosts = [];
     if (feedTab === "foryou") {
       displayPosts = [...posts]
-        .filter((p: any) => !p.isStory)
+        .filter((p) => !p.isStory)
         .sort((a, b) => {
           if (a.boosted && !b.boosted) return -1;
           if (!a.boosted && b.boosted) return 1;
@@ -1917,7 +1944,7 @@ export default function App() {
     } else {
       displayPosts = posts
         .filter(
-          (p: any) => !p.isStory && (following.includes(p.authorId) || p.isMine)
+          (p) => !p.isStory && (following.includes(p.authorId) || p.isMine)
         )
         .sort((a, b) => b.timestamp - a.timestamp);
     }
@@ -2274,7 +2301,7 @@ export default function App() {
                   };
                   reader.readAsDataURL(file);
                 }
-                e.target.value = "";
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
             />
             <button
@@ -2313,14 +2340,14 @@ export default function App() {
     if (selectedPost.isStory) {
       activeStories = posts
         .filter(
-          (p: any) =>
+          (p) =>
             p.authorId === selectedPost.authorId &&
             p.isStory &&
             Date.now() - p.timestamp < 24 * 60 * 60 * 1000
         )
         .sort((a, b) => a.timestamp - b.timestamp);
       currentStoryIndex = activeStories.findIndex(
-        (p: any) => p.id === selectedPost.id
+        (p) => p.id === selectedPost.id
       );
     }
 
@@ -2676,13 +2703,13 @@ export default function App() {
             <MessageCircle className="w-5 h-5" /> {t.commentBtn}
           </button>
 
-          {isPractice && (
+          {/* 🌟 修改點：確保只有母語相符且不是作者本人，才顯示「給予建議」 */}
+          {isPractice && isNativeResponder && currentUserId !== selectedPost.authorId && (
             <button
               onClick={() => setShowCorrectionModal(true)}
               className="flex-[1.5] py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
             >
-              <Edit3 className="w-5 h-5" /> {t.correctBtn}{" "}
-              {isNativeResponder ? "(+10🧼)" : ""}
+              <Edit3 className="w-5 h-5" /> {t.correctBtn} (+10🧼)
             </button>
           )}
         </div>
@@ -2836,7 +2863,7 @@ export default function App() {
     const intentLabel = t.intents.find((i) => i.id === pIntent)?.label || "";
 
     const specificUserPosts = posts.filter(
-      (p: any) =>
+      (p) =>
         (isMyProfile ? p.isMine : p.authorId === viewingProfileAuthor) &&
         !p.isStory
     );
@@ -3048,7 +3075,7 @@ export default function App() {
                     );
 
                     const myPostsToSync = posts.filter(
-                      (p: any) =>
+                      (p) =>
                         p.authorId === currentUserId ||
                         p.author === currentUserTag
                     );
@@ -3175,7 +3202,7 @@ export default function App() {
               <button
                 className="w-full bg-white border border-gray-200 text-gray-700 font-bold p-4 rounded-2xl active:scale-95 transition-transform"
                 onClick={() => {
-                  const myPosts = posts.filter((p: any) => p.isMine && !p.isStory);
+                  const myPosts = posts.filter((p) => p.isMine && !p.isStory);
                   if (myPosts.length > 0) {
                     handleBoost(myPosts[0].id);
                   } else {
