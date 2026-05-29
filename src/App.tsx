@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 // @ts-ignore
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,
@@ -50,6 +50,8 @@ import {
   where,
   limit,
 } from "firebase/firestore";
+// 🌟 引入 Storage 相關功能
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 // --- 多國語言字典 (i18n) ---
 const locales = {
@@ -211,6 +213,7 @@ const locales = {
     commentedYourPost: "留言了你的貼文",
     correctedYourPost: "為你的貼文提供了建議",
     sentImage: "傳送了圖片",
+    sentVoice: "傳送了一則語音訊息",
     you: "你: ",
   },
   English: {
@@ -377,6 +380,7 @@ const locales = {
     commentedYourPost: "commented on your post",
     correctedYourPost: "corrected your post",
     sentImage: "Sent an image",
+    sentVoice: "Sent a voice message",
     you: "You: ",
   },
 };
@@ -600,6 +604,11 @@ export default function App() {
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+
+  // 🌟 錄音相關的 State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<any[]>([]);
 
   const selectedPost = posts.find((p) => p.id === selectedPostId);
 
@@ -1582,6 +1591,7 @@ export default function App() {
       };
       reader.readAsDataURL(file);
     }
+    // 🌟 修復照片不能連續選同一張的 Bug
     if (chatFileInputRef.current) chatFileInputRef.current.value = "";
   };
 
@@ -1617,6 +1627,77 @@ export default function App() {
       });
     } catch (e) {}
     setActiveReactionMsg(null);
+  };
+
+  // 🌟 錄音相關的實作邏輯
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const chatId = [currentUserId, activeChatUser].sort().join("_");
+        const fileName = `voice_${Date.now()}.webm`;
+        const storageRef = ref(storage, `chats/${chatId}/${fileName}`);
+        
+        try {
+          const uploadTask = await uploadBytesResumable(storageRef, audioBlob);
+          const downloadURL = await getDownloadURL(uploadTask.ref);
+          
+          const newMsg = {
+            sender: currentUserId,
+            text: "",
+            audio: downloadURL,
+            timestamp: Date.now(),
+            time: t.justNow,
+          };
+          
+          await addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+          await setDoc(
+            doc(db, "users", activeChatUser),
+            {
+              hasUnreadMessages: true,
+              unreadChats: arrayUnion(currentUserId),
+            },
+            { merge: true }
+          );
+        } catch (err) {
+          console.error("Audio upload failed", err);
+          showToast("上傳語音失敗，請確認已開通 Firebase Storage", t.oopsTitle);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mic access denied", err);
+      showToast("無法存取麥克風，請確認瀏覽器權限", t.oopsTitle);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track: any) => track.stop());
+      setIsRecording(false);
+    }
+  };
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   // --- Rendering ---
@@ -3446,6 +3527,7 @@ export default function App() {
                 const isMe = latestMsg.sender === currentUserId;
                 const prefix = isMe ? t.you : "";
                 if (latestMsg.image) previewText = prefix + t.sentImage;
+                else if (latestMsg.audio) previewText = prefix + t.sentVoice;
                 else previewText = prefix + latestMsg.text;
               }
               const isUnread = userProfile.unreadChats?.includes(uid);
@@ -3568,6 +3650,14 @@ export default function App() {
                     onClick={() => setFullscreenImage(msg.image)}
                   />
                 )}
+                {/* 🌟 語音播放器 */}
+                {msg.audio && (
+                  <audio
+                    src={msg.audio}
+                    controls
+                    className="w-48 outline-none h-10 mt-1"
+                  />
+                )}
                 {msg.text && (
                   <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
                     {msg.text}
@@ -3603,18 +3693,24 @@ export default function App() {
         >
           <ImageIcon className="w-6 h-6" />
         </button>
+        
+        {/* 🌟 修改的麥克風按鈕 */}
         <button
-          onClick={() => showToast(t.featureComingSoon, t.comingSoon)}
-          className="text-gray-400 hover:text-purple-600 transition-colors"
+          onClick={handleMicClick}
+          className={`${
+            isRecording ? "text-pink-500 animate-pulse" : "text-gray-400 hover:text-purple-600"
+          } transition-colors`}
         >
           <Mic className="w-6 h-6" />
         </button>
+        
         <div className="flex-1 bg-gray-50 rounded-full px-4 py-3 flex items-center border border-gray-100 focus-within:border-purple-300 transition-colors">
           <input
             className="flex-1 bg-transparent outline-none text-sm text-gray-800"
-            placeholder="Aa"
+            placeholder={isRecording ? "錄音中..." : "Aa"}
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
+            disabled={isRecording}
             onKeyDown={(e: any) =>
               !e.nativeEvent.isComposing &&
               e.key === "Enter" &&
@@ -3624,8 +3720,8 @@ export default function App() {
             onClick={() => setTimeout(scrollToBottom, 300)}
           />
           <Send
-            className="w-5 h-5 text-purple-600 cursor-pointer"
-            onClick={() => handleSendChatMessage()}
+            className={`w-5 h-5 cursor-pointer ${isRecording ? "text-gray-300" : "text-purple-600"}`}
+            onClick={() => !isRecording && handleSendChatMessage()}
           />
         </div>
       </div>
