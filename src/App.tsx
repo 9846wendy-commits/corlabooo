@@ -1644,9 +1644,11 @@ export default function App() {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // 修改點 1：將 type 改為 audio/mp4 (或留空讓系統自動判斷相容格式)
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' }); 
         const chatId = [currentUserId, activeChatUser].sort().join("_");
-        const fileName = `voice_${Date.now()}.webm`;
+        // 修改點 2：副檔名改為 .mp4
+        const fileName = `voice_${Date.now()}.mp4`; 
         const storageRef = ref(storage, `chats/${chatId}/${fileName}`);
         
         try {
